@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Agent Chat/Summary Screen</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#137fec",
+            "background-light": "#f6f7f8",
+            "background-dark": "#101922",
+          },
+          fontFamily: {
+            "display": ["Inter", "sans-serif"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="relative flex h-screen w-full flex-col group/design-root overflow-hidden">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-10 w-full shrink-0 border-b border-white/10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm">
+<div class="flex h-14 items-center px-4">
+<button class="flex size-10 shrink-0 items-center justify-center rounded-full text-gray-700 dark:text-gray-300">
+<span class="material-symbols-outlined text-2xl">arrow_back_ios_new</span>
+</button>
+<h1 class="flex-1 text-center text-base font-medium text-gray-900 dark:text-white">AI Chat</h1>
+<button class="flex size-10 shrink-0 items-center justify-center rounded-full text-gray-700 dark:text-gray-300">
+<span class="material-symbols-outlined text-2xl">more_horiz</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex flex-1 flex-col overflow-y-auto">
+<!-- Paper Context Header (Sticky) -->
+<div class="sticky top-[56px] z-10 w-full bg-background-light/80 dark:bg-background-dark/80 px-4 pt-4 pb-3 backdrop-blur-sm">
+<div class="flex w-full min-w-72 grow flex-col items-stretch justify-center gap-1 rounded-xl bg-white/5 p-4 dark:bg-white/5">
+<p class="text-base font-bold leading-tight tracking-[-0.015em] text-gray-900 dark:text-white">Attention Is All You Need</p>
+<div class="flex flex-col gap-1">
+<p class="text-sm font-normal leading-normal text-gray-500 dark:text-gray-400">Vaswani et al., 2017</p>
+<p class="text-sm font-normal leading-normal text-gray-500 dark:text-gray-400">Computer Science</p>
+</div>
+</div>
+</div>
+<!-- Chat History -->
+<div class="flex flex-col gap-4 p-4">
+<!-- AI Welcome Message -->
+<div class="flex items-end gap-3">
+<div class="h-8 w-8 shrink-0 rounded-full bg-gray-700 dark:bg-gray-700" data-alt="AI agent avatar, abstract gradient">
+<img alt="AI agent avatar" class="h-full w-full rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAIEo4RRfgbTJEX_roebPQd5-hVOxqmeSwLQMINkm7m6bOEIID4m1CEx0EstJf9dICR0Zr_BHcoOJ2SPJyxLoMRS7Hst-Ilyz5qxRO2GQBN4c5OTueZmUdBW8HxUAnbFo-S2LILszE9w-OfO-235DfXJU8ABDneDxe2fXRQTscrP9hc7Xc_W0yw7XmcdpLhdHadhtrOvfSwqlBygW56Ql8IrOsFS634JymRRGLRdH_zkKAxe5E6LAD-fsEsGZMsLPAj6zWbwDGojYI"/>
+</div>
+<div class="flex flex-1 flex-col items-start gap-1.5">
+<p class="max-w-[360px] rounded-lg rounded-bl-none bg-gray-200 px-4 py-2.5 text-sm font-normal leading-normal text-gray-800 dark:bg-[#233648] dark:text-white">Hello! I've read this paper. I've prepared a summary for you below. How can I help you analyze it?</p>
+</div>
+</div>
+<!-- Accordion Summary -->
+<div class="flex flex-col gap-3 px-1">
+<details class="group flex flex-col rounded-lg border border-gray-300 bg-transparent px-[15px] py-[7px] dark:border-[#324d67]">
+<summary class="flex cursor-pointer list-none items-center justify-between gap-6 py-2">
+<p class="text-sm font-medium leading-normal text-primary">View Initial Summary</p>
+<div class="text-gray-500 transition-transform duration-200 group-open:rotate-180 dark:text-gray-400">
+<span class="material-symbols-outlined text-xl">expand_more</span>
+</div>
+</summary>
+<p class="pb-2 text-sm font-normal leading-normal text-gray-600 dark:text-gray-400">This paper introduces the Transformer, a novel network architecture based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. The model achieves state-of-the-art results in machine translation while requiring significantly less time to train.</p>
+</details>
+</div>
+<!-- User Message -->
+<div class="flex items-end justify-end gap-3">
+<div class="flex flex-1 flex-col items-end gap-1">
+<p class="flex max-w-[360px] rounded-lg rounded-br-none bg-primary px-4 py-2.5 text-sm font-normal leading-normal text-white">Can you explain the methodology in simple terms?</p>
+</div>
+</div>
+<!-- AI Typing Indicator -->
+<div class="flex items-end gap-3">
+<div class="h-8 w-8 shrink-0 rounded-full bg-gray-700 dark:bg-gray-700" data-alt="AI agent avatar, abstract gradient">
+<img alt="AI agent avatar" class="h-full w-full rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDaXBo2Evhlb24um_arKwLe9csoXYFIQdPe7iurkVi_lzJ6_5rq0bF6TTjdxFKKAqyE2SkCmzi9BJWpqCEC28HVaCSR0I2XKjn1jYFAO0xghZAtFt38ftD_AcN8cYnnY5w6xmeDNr4mjCbAnogoBtCKqGDdrJ49xjM_u9wMLtdcJHs32383b5UfxRX0TJ8vpI7UbEe-bIACpVjmhZvxWk2DgZhcmkhNXFZtyuyt_PZOhweV8cXgHpqQzmxIM8EedKJe4X2FEUHryqA"/>
+</div>
+<div class="flex flex-1 flex-col items-start gap-1.5">
+<div class="flex h-10 w-16 items-center justify-center space-x-1 rounded-lg rounded-bl-none bg-gray-200 p-2 dark:bg-[#233648]">
+<div class="h-2 w-2 animate-[pulse_1s_ease-in-out_infinite] rounded-full bg-gray-400 dark:bg-gray-500"></div>
+<div class="h-2 w-2 animate-[pulse_1s_ease-in-out_0.2s_infinite] rounded-full bg-gray-400 dark:bg-gray-500"></div>
+<div class="h-2 w-2 animate-[pulse_1s_ease-in-out_0.4s_infinite] rounded-full bg-gray-400 dark:bg-gray-500"></div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Input Footer -->
+<footer class="sticky bottom-0 w-full shrink-0 border-t border-white/10 bg-background-light dark:bg-background-dark">
+<!-- Suggested Prompts -->
+<div class="overflow-x-auto whitespace-nowrap p-3">
+<div class="flex items-center gap-2">
+<button class="inline-block rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Key Contributions?</button>
+<button class="inline-block rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Limitations?</button>
+<button class="inline-block rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Compare to other work</button>
+<button class="inline-block rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:text-gray-300">Explain the abstract</button>
+</div>
+</div>
+<!-- Text Input Area -->
+<div class="flex items-center gap-2 p-4 pt-0">
+<div class="relative flex-1">
+<input class="w-full rounded-full border border-gray-300 bg-gray-100 py-2.5 pl-4 pr-12 text-sm text-gray-900 placeholder:text-gray-500 focus:border-primary focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400" placeholder="Ask about this paper..." type="text"/>
+</div>
+<button class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white">
+<span class="material-symbols-outlined text-xl">arrow_upward</span>
+</button>
+</div>
+</footer>
+</div>
+</body></html>

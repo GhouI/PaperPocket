@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dashboard Screen</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#137fec",
+              "background-light": "#f6f7f8",
+              "background-dark": "#101922",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display">
+<div class="relative flex min-h-screen w-full flex-col">
+<!-- Top App Bar -->
+<div class="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-white/10 dark:border-white/10">
+<div class="text-slate-800 dark:text-white flex size-12 shrink-0 items-center justify-start">
+<span class="material-symbols-outlined text-3xl">science</span>
+</div>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Dashboard</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 w-10 bg-transparent text-slate-800 dark:text-white gap-2 text-base font-bold leading-normal tracking-[0.015em] min-w-0 p-0">
+<span class="material-symbols-outlined text-3xl">account_circle</span>
+</button>
+</div>
+</div>
+<!-- Search Bar -->
+<div class="px-4 py-3 bg-background-light dark:bg-background-dark">
+<label class="flex flex-col min-w-40 h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-slate-500 dark:text-[#92adc9] flex border-none bg-white dark:bg-[#233648] items-center justify-center pl-4 rounded-l-lg border-r-0">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-0 border-none bg-white dark:bg-[#233648] h-full placeholder:text-slate-500 dark:placeholder:text-[#92adc9] px-4 pl-2 text-base font-normal leading-normal" placeholder="Search papers, authors, keywords..." value=""/>
+</div>
+</label>
+</div>
+<!-- Chips -->
+<div class="flex gap-3 px-4 py-2 overflow-x-auto">
+<div class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-white dark:bg-[#233648] pl-3 pr-4">
+<span class="material-symbols-outlined text-slate-800 dark:text-white text-base">add_circle</span>
+<p class="text-slate-800 dark:text-white text-sm font-medium leading-normal">Add Interest</p>
+</div>
+<div class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-white dark:bg-[#233648] pl-3 pr-4">
+<span class="material-symbols-outlined text-slate-800 dark:text-white text-base">link</span>
+<p class="text-slate-800 dark:text-white text-sm font-medium leading-normal">Add from URL</p>
+</div>
+<div class="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-white dark:bg-[#233648] pl-3 pr-4">
+<span class="material-symbols-outlined text-slate-800 dark:text-white text-base">collections_bookmark</span>
+<p class="text-slate-800 dark:text-white text-sm font-medium leading-normal">My Library</p>
+</div>
+</div>
+<!-- Section Header: For You -->
+<h2 class="text-slate-900 dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">For You</h2>
+<!-- Card 1 -->
+<div class="px-4 pb-4 @container">
+<div class="flex flex-col items-stretch justify-start rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] dark:shadow-[0_0_4px_rgba(0,0,0,0.1)] bg-white dark:bg-[#192633]">
+<div class="w-full bg-center bg-no-repeat aspect-[2/1] bg-cover rounded-t-xl" data-alt="Abstract gradient representing a machine learning concept" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCUJEdvpBHRRmx7cZArH8rZEjWYYYDSGnkHq3hgLZYLNqm4TXsLDKxYW-qdKHjHdBm2q8jKUN34-uIKvy70eOfQqbVakgB2Bff3hwnpAPjpKNCV2JCWEsfqvK6e-PlP4bLfAnQdccDLuzMfReRC-2yuw-dWnaDxG9cuFNfWRufWMCFhjJ2JQj_gIikIJR4k9m8qd8OdfG3LE2c5LjnNmLajC44PQaiq1WYohoDBcTowllgjZKec35wapQi7YaQSAwjp6JFPeKvqAC4');"></div>
+<div class="flex w-full min-w-72 grow flex-col items-stretch justify-center gap-2 p-4">
+<p class="text-slate-500 dark:text-[#92adc9] text-sm font-normal leading-normal">Machine Learning, NLP</p>
+<p class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">Attention Is All You Need</p>
+<div class="flex flex-col gap-2">
+<p class="text-slate-600 dark:text-[#92adc9] text-sm font-normal leading-normal">
+                            Ashish Vaswani, Noam Shazeer, Niki Parmar, et al. (2017)
+                        </p>
+<p class="text-slate-600 dark:text-[#92adc9] text-sm font-normal leading-normal line-clamp-2">
+                            The dominant sequence transduction models are based on complex recurrent or convolutional neural networks... <span class="text-primary/80 dark:text-primary/70 font-semibold">Because you like 'Transformers'</span>
+</p>
+</div>
+<div class="flex items-center gap-2 pt-2">
+<button class="flex items-center justify-center overflow-hidden rounded-full h-10 w-10 bg-primary/20 dark:bg-primary/20 text-primary dark:text-primary">
+<span class="material-symbols-outlined">bookmark_add</span>
+</button>
+<button class="flex items-center justify-center overflow-hidden rounded-full h-10 w-10 bg-primary/20 dark:bg-primary/20 text-primary dark:text-primary">
+<span class="material-symbols-outlined">share</span>
+</button>
+<button class="flex flex-grow max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-medium leading-normal ml-auto">
+<span class="truncate">View PDF</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Section Header: Agent Activity -->
+<h2 class="text-slate-900 dark:text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Agent Activity</h2>
+<!-- Recently Processed Card -->
+<div class="px-4 pb-4">
+<div class="flex flex-col gap-4 p-4 rounded-xl bg-white dark:bg-[#192633] shadow-[0_4px_12px_rgba(0,0,0,0.05)] dark:shadow-[0_0_4px_rgba(0,0,0,0.1)]">
+<div class="flex items-start">
+<div class="flex flex-col flex-grow">
+<p class="text-slate-900 dark:text-white font-semibold">Self-Consuming Generative Models Go To The Tail</p>
+<span class="text-slate-500 dark:text-[#92adc9] text-sm">Processed 5m ago</span>
+</div>
+<span class="material-symbols-outlined text-green-500 ml-4">check_circle</span>
+</div>
+<hr class="border-slate-200 dark:border-white/10"/>
+<div class="flex items-start">
+<div class="flex flex-col flex-grow">
+<p class="text-slate-900 dark:text-white font-semibold">Scaling Monosemanticity in Superposition</p>
+<span class="text-slate-500 dark:text-[#92adc9] text-sm">Processed 22m ago</span>
+</div>
+<span class="material-symbols-outlined text-green-500 ml-4">check_circle</span>
+</div>
+<hr class="border-slate-200 dark:border-white/10"/>
+<button class="text-primary text-sm font-semibold w-full text-center py-2 -mb-1">View All Activity</button>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="px-4 pb-8 @container">
+<div class="flex flex-col items-stretch justify-start rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] dark:shadow-[0_0_4px_rgba(0,0,0,0.1)] bg-white dark:bg-[#192633]">
+<div class="w-full bg-center bg-no-repeat aspect-[2/1] bg-cover rounded-t-xl" data-alt="Abstract gradient representing a computer vision concept" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCQljJEahMAYlfaMIHtQlTzmfH6gmNP9B3J9OvF4T87B1G7oDgzqGYaQpk049dG0zRDTqzI0X5bcYxR70dGDW14cIyE05B6lCP06bMExpS1ONSyRrAl4tw9Tei2DJRkPwWqlRfNRNV27JlOq_X92G7BDxg5IpQCNkEwkb6RYWOxUYpMauZ1lR6W0tuLUyV6t2wtrbGvzfBuxHaDjFPphqCOQXH0NXCrxaP3yDeD0uPYFfWQJ7WpoLHH1C3sJaf5EbQYbS7jCdSPEWk');"></div>
+<div class="flex w-full min-w-72 grow flex-col items-stretch justify-center gap-2 p-4">
+<p class="text-slate-500 dark:text-[#92adc9] text-sm font-normal leading-normal">Computer Vision, Deep Learning</p>
+<p class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale</p>
+<div class="flex flex-col gap-2">
+<p class="text-slate-600 dark:text-[#92adc9] text-sm font-normal leading-normal">
+                           Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, et al. (2020)
+                        </p>
+<p class="text-slate-600 dark:text-[#92adc9] text-sm font-normal leading-normal line-clamp-2">
+                           While the Transformer architecture has become the de-facto standard for natural language processing tasks... <span class="text-primary/80 dark:text-primary/70 font-semibold">Because you like 'Transformers'</span>
+</p>
+</div>
+<div class="flex items-center gap-2 pt-2">
+<button class="flex items-center justify-center overflow-hidden rounded-full h-10 w-10 bg-primary/20 dark:bg-primary/20 text-primary dark:text-primary">
+<span class="material-symbols-outlined">bookmark_add</span>
+</button>
+<button class="flex items-center justify-center overflow-hidden rounded-full h-10 w-10 bg-primary/20 dark:bg-primary/20 text-primary dark:text-primary">
+<span class="material-symbols-outlined">share</span>
+</button>
+<button class="flex flex-grow max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-medium leading-normal ml-auto">
+<span class="truncate">View PDF</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</body></html>

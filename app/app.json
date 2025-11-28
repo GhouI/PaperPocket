@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "PaperPocket",
+    "slug": "paperpocket",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#101922"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.paperpocket.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#101922"
+      },
+      "package": "com.paperpocket.app",
+      "minSdkVersion": 24
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
+
