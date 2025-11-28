@@ -1,15 +1,11 @@
-import React, { useCallback, useEffect } from 'react';
+import { Inter_400Regular, Inter_500Medium, Inter_700Bold, useFonts } from '@expo-google-fonts/inter';
 import { StatusBar } from 'expo-status-bar';
-import { useColorScheme, View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
-import * as SplashScreen from 'expo-splash-screen';
+import React from 'react';
+import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import Navigation from './src/navigation';
 import { colors } from './src/theme';
-
-// Keep splash screen visible while loading fonts
-SplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const colorScheme = useColorScheme();
@@ -20,18 +16,6 @@ export default function App() {
     Inter_500Medium,
     Inter_700Bold,
   });
-
-  const onLayoutRootView = useCallback(async () => {
-    if (fontsLoaded) {
-      await SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
-
-  useEffect(() => {
-    if (fontsLoaded) {
-      onLayoutRootView();
-    }
-  }, [fontsLoaded, onLayoutRootView]);
 
   if (!fontsLoaded) {
     return (
@@ -63,4 +47,3 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundDark,
   },
 });
-
