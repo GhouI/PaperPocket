@@ -15,15 +15,16 @@ import { useCactusAI } from '../hooks/useCactusAI';
 export default function ModelDownloadBanner() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  
+
   const {
-    isModelDownloaded,
-    isModelLoading,
-    modelDownloadProgress,
+    isDownloaded,
+    isDownloading,
+    downloadProgress,
     downloadModel,
+    error,
   } = useCactusAI();
 
-  if (isModelDownloaded) return null;
+  if (isDownloaded) return null;
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
@@ -31,19 +32,22 @@ export default function ModelDownloadBanner() {
         <View style={styles.iconContainer}>
           <Ionicons name="hardware-chip" size={24} color={colors.accent} />
         </View>
-        
+
         <View style={styles.textContainer}>
           <Text style={[styles.title, isDark && styles.titleDark]}>
-            {isModelLoading ? 'Downloading AI Model...' : 'Enable On-Device AI'}
+            {isDownloading ? 'Downloading AI Model...' : 'Enable On-Device AI'}
           </Text>
           <Text style={[styles.subtitle, isDark && styles.subtitleDark]}>
-            {isModelLoading
-              ? `${Math.round(modelDownloadProgress * 100)}% complete`
-              : 'Chat about papers offline with local AI'}
+            {isDownloading
+              ? `${Math.round(downloadProgress * 100)}% complete`
+              : 'Chat about papers offline (~600MB)'}
           </Text>
+          {error && (
+            <Text style={styles.errorText}>{error}</Text>
+          )}
         </View>
 
-        {isModelLoading ? (
+        {isDownloading ? (
           <View style={styles.progressContainer}>
             <ActivityIndicator color={colors.primary} size="small" />
           </View>
@@ -58,12 +62,12 @@ export default function ModelDownloadBanner() {
         )}
       </View>
 
-      {isModelLoading && (
+      {isDownloading && (
         <View style={styles.progressBarContainer}>
           <View
             style={[
               styles.progressBar,
-              { width: `${modelDownloadProgress * 100}%` },
+              { width: `${downloadProgress * 100}%` },
             ]}
           />
         </View>
@@ -115,6 +119,11 @@ const styles = StyleSheet.create({
   subtitleDark: {
     color: colors.textSecondaryDark,
   },
+  errorText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.error,
+    marginTop: spacing.xs,
+  },
   downloadButton: {
     width: 40,
     height: 40,
@@ -138,4 +147,3 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
 });
-

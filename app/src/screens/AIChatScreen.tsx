@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -24,10 +23,11 @@ import { useCactusAI } from '../hooks/useCactusAI';
 type AIChatRouteProp = RouteProp<RootStackParamList, 'AIChat'>;
 
 const SUGGESTED_PROMPTS = [
-  'Key Contributions?',
-  'Limitations?',
-  'Compare to other work',
-  'Explain the abstract',
+  'Summarize the key findings',
+  'Explain the methodology',
+  'What are the limitations?',
+  'How does this compare to prior work?',
+  'What are the practical applications?',
 ];
 
 export default function AIChatScreen() {
@@ -38,74 +38,86 @@ export default function AIChatScreen() {
   const route = useRoute<AIChatRouteProp>();
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const { recommendedPapers, libraryPapers, chatSessions, addMessageToSession, updateLastMessage } =
-    useAppStore();
+  const { getPaperById, getChatSession, addMessageToSession, updateLastMessage } = useAppStore();
 
   const {
-    isModelDownloaded,
+    isDownloaded,
+    isDownloading,
+    downloadProgress,
     isGenerating,
-    currentResponse,
+    completion,
+    error: aiError,
+    downloadModel,
     chatAboutPaper,
     summarizePaper,
-    downloadModel,
-    isModelLoading,
-    modelDownloadProgress,
+    stopGeneration,
   } = useCactusAI();
 
   const [inputText, setInputText] = useState('');
+  const [hasInitialSummary, setHasInitialSummary] = useState(false);
 
   // Find paper
-  const paper = [...recommendedPapers, ...libraryPapers].find(
-    (p) => p.id === route.params.paperId
-  );
+  const paper = getPaperById(route.params.paperId);
 
-  // Get or initialize chat session
-  const session = chatSessions[route.params.paperId];
+  // Get chat session
+  const session = getChatSession(route.params.paperId);
   const messages = session?.messages || [];
 
-  // Initialize with welcome message
+  // Initialize chat with welcome message
   useEffect(() => {
-    if (paper && !session) {
-      addMessageToSession(paper.id, {
+    if (paper && messages.length === 0) {
+      const welcomeMessage: ChatMessage = {
         id: 'welcome',
         role: 'assistant',
-        content:
-          "Hello! I've read this paper. I can help you understand it better. What would you like to know?",
+        content: `Hello! I'm ready to help you understand **"${paper.title}"**.\n\nI can explain concepts, summarize sections, discuss methodology, or answer any questions about this paper.\n\nWhat would you like to know?`,
         timestamp: new Date().toISOString(),
-      });
-
-      // Generate initial summary if model is ready
-      if (isModelDownloaded) {
-        generateSummary();
-      }
+      };
+      addMessageToSession(paper.id, welcomeMessage);
     }
-  }, [paper, session, isModelDownloaded]);
+  }, [paper?.id]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  }, [messages, currentResponse]);
+  }, [messages.length, completion]);
 
-  const generateSummary = async () => {
-    if (!paper) return;
+  // Generate initial summary when model is ready
+  useEffect(() => {
+    if (paper && isDownloaded && !hasInitialSummary && messages.length <= 1) {
+      generateInitialSummary();
+    }
+  }, [isDownloaded, paper?.id, hasInitialSummary]);
+
+  const generateInitialSummary = async () => {
+    if (!paper || !isDownloaded || isGenerating) return;
+
+    setHasInitialSummary(true);
+
+    // Add thinking indicator
+    const thinkingMsg: ChatMessage = {
+      id: `summary-${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+      isStreaming: true,
+    };
+    await addMessageToSession(paper.id, thinkingMsg);
 
     try {
       const result = await summarizePaper(paper);
-      addMessageToSession(paper.id, {
-        id: `summary-${Date.now()}`,
-        role: 'assistant',
-        content: `**Summary:**\n${result.response}`,
-        timestamp: new Date().toISOString(),
-      });
+      updateLastMessage(paper.id, `📝 **Quick Summary:**\n\n${result.response}`);
     } catch (err) {
-      console.error('Failed to generate summary:', err);
+      updateLastMessage(
+        paper.id,
+        "I'm ready to help you understand this paper. Feel free to ask any questions!"
+      );
     }
   };
 
   const handleSend = useCallback(async () => {
-    if (!inputText.trim() || !paper || isGenerating) return;
+    if (!inputText.trim() || !paper || isGenerating || !isDownloaded) return;
 
     const userMessage = inputText.trim();
     setInputText('');
@@ -117,50 +129,65 @@ export default function AIChatScreen() {
       content: userMessage,
       timestamp: new Date().toISOString(),
     };
-    addMessageToSession(paper.id, userMsg);
+    await addMessageToSession(paper.id, userMsg);
 
     // Add placeholder for AI response
-    const aiMsgId = `ai-${Date.now()}`;
-    addMessageToSession(paper.id, {
-      id: aiMsgId,
+    const aiMsg: ChatMessage = {
+      id: `ai-${Date.now()}`,
       role: 'assistant',
       content: '',
       timestamp: new Date().toISOString(),
       isStreaming: true,
-    });
+    };
+    await addMessageToSession(paper.id, aiMsg);
 
     try {
+      // Get recent messages for context (limit to last 10 for performance)
+      const recentMessages = messages.slice(-10);
+
       const result = await chatAboutPaper(
         paper,
         userMessage,
-        messages.filter((m) => m.role !== 'system'),
+        recentMessages,
         (token) => {
-          // Update the last message with streaming content
-          updateLastMessage(paper.id, currentResponse + token);
+          // Streaming is handled by the completion state
         }
       );
 
       // Update with final response
       updateLastMessage(paper.id, result.response);
     } catch (err) {
-      updateLastMessage(paper.id, 'Sorry, I encountered an error. Please try again.');
+      const errorMessage =
+        err instanceof Error ? err.message : 'Sorry, I encountered an error. Please try again.';
+      updateLastMessage(paper.id, `⚠️ ${errorMessage}`);
     }
-  }, [inputText, paper, isGenerating, messages, chatAboutPaper, addMessageToSession, updateLastMessage]);
+  }, [inputText, paper, isGenerating, isDownloaded, messages, chatAboutPaper, addMessageToSession, updateLastMessage]);
 
   const handleSuggestedPrompt = (prompt: string) => {
     setInputText(prompt);
   };
+
+  const handleStop = useCallback(() => {
+    stopGeneration();
+  }, [stopGeneration]);
 
   if (!paper) {
     return (
       <View style={[styles.container, isDark && styles.containerDark]}>
         <View style={[styles.header, { paddingTop: insets.top }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={24} color={isDark ? colors.textPrimaryDark : colors.textPrimaryLight} />
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={isDark ? colors.textPrimaryDark : colors.textPrimaryLight}
+            />
           </TouchableOpacity>
         </View>
         <View style={styles.notFoundContainer}>
-          <Text style={[styles.notFoundText, isDark && styles.notFoundTextDark]}>Paper not found</Text>
+          <Ionicons name="document-outline" size={64} color={colors.textTertiaryLight} />
+          <Text style={[styles.notFoundText, isDark && styles.notFoundTextDark]}>
+            Paper not found
+          </Text>
         </View>
       </View>
     );
@@ -173,13 +200,21 @@ export default function AIChatScreen() {
       keyboardVerticalOffset={0}
     >
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { paddingTop: insets.top }, isDark && styles.headerDark]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color={isDark ? colors.textPrimaryDark : colors.textPrimaryLight} />
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color={isDark ? colors.textPrimaryDark : colors.textPrimaryLight}
+          />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>AI Chat</Text>
+        <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>AI Assistant</Text>
         <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-horizontal" size={24} color={isDark ? colors.textPrimaryDark : colors.textPrimaryLight} />
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={24}
+            color={isDark ? colors.textPrimaryDark : colors.textPrimaryLight}
+          />
         </TouchableOpacity>
       </View>
 
@@ -190,27 +225,32 @@ export default function AIChatScreen() {
         </Text>
         <Text style={[styles.paperMeta, isDark && styles.paperMetaDark]}>
           {paper.authors.slice(0, 2).join(', ')}
-          {paper.authors.length > 2 ? ' et al.' : ''}, {new Date(paper.publishedDate).getFullYear()}
+          {paper.authors.length > 2 ? ' et al.' : ''} • {paper.categories[0]}
         </Text>
       </View>
 
-      {/* Model Download Prompt */}
-      {!isModelDownloaded && (
+      {/* Model Download Banner */}
+      {!isDownloaded && (
         <View style={[styles.downloadBanner, isDark && styles.downloadBannerDark]}>
           <Ionicons name="hardware-chip" size={24} color={colors.accent} />
-          <View style={styles.downloadBannerText}>
+          <View style={styles.downloadBannerContent}>
             <Text style={[styles.downloadTitle, isDark && styles.downloadTitleDark]}>
-              {isModelLoading ? 'Downloading AI Model...' : 'Enable On-Device AI'}
+              {isDownloading ? 'Downloading AI Model...' : 'Download AI Model'}
             </Text>
             <Text style={[styles.downloadSubtitle, isDark && styles.downloadSubtitleDark]}>
-              {isModelLoading
-                ? `${Math.round(modelDownloadProgress * 100)}%`
-                : 'Required for chat functionality'}
+              {isDownloading
+                ? `${Math.round(downloadProgress * 100)}% complete`
+                : 'Required for chat (~600MB, runs offline)'}
             </Text>
+            {isDownloading && (
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { width: `${downloadProgress * 100}%` }]} />
+              </View>
+            )}
           </View>
-          {!isModelLoading && (
+          {!isDownloading && (
             <TouchableOpacity style={styles.downloadButton} onPress={downloadModel}>
-              <Text style={styles.downloadButtonText}>Download</Text>
+              <Ionicons name="download" size={18} color="#fff" />
             </TouchableOpacity>
           )}
         </View>
@@ -223,7 +263,7 @@ export default function AIChatScreen() {
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
       >
-        {messages.map((message, index) => (
+        {messages.map((message) => (
           <View
             key={message.id}
             style={[
@@ -232,7 +272,7 @@ export default function AIChatScreen() {
             ]}
           >
             {message.role === 'assistant' && (
-              <View style={styles.avatarContainer}>
+              <View style={[styles.avatarContainer, isDark && styles.avatarContainerDark]}>
                 <Ionicons name="sparkles" size={16} color={colors.primary} />
               </View>
             )}
@@ -257,9 +297,10 @@ export default function AIChatScreen() {
                 </Text>
               ) : message.isStreaming ? (
                 <View style={styles.typingIndicator}>
-                  <View style={[styles.typingDot, styles.typingDot1]} />
-                  <View style={[styles.typingDot, styles.typingDot2]} />
-                  <View style={[styles.typingDot, styles.typingDot3]} />
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={[styles.typingText, isDark && styles.typingTextDark]}>
+                    Thinking...
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -267,14 +308,16 @@ export default function AIChatScreen() {
         ))}
 
         {/* Streaming response */}
-        {isGenerating && currentResponse && (
+        {isGenerating && completion && (
           <View style={[styles.messageRow, styles.aiMessageRow]}>
-            <View style={styles.avatarContainer}>
+            <View style={[styles.avatarContainer, isDark && styles.avatarContainerDark]}>
               <Ionicons name="sparkles" size={16} color={colors.primary} />
             </View>
             <View style={[styles.messageBubble, styles.aiBubble, isDark && styles.aiBubbleDark]}>
-              <Text style={[styles.messageText, styles.aiMessageText, isDark && styles.aiMessageTextDark]}>
-                {currentResponse}
+              <Text
+                style={[styles.messageText, styles.aiMessageText, isDark && styles.aiMessageTextDark]}
+              >
+                {completion}
               </Text>
             </View>
           </View>
@@ -284,23 +327,25 @@ export default function AIChatScreen() {
       {/* Input Area */}
       <View style={[styles.inputContainer, isDark && styles.inputContainerDark]}>
         {/* Suggested Prompts */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.suggestedContainer}
-        >
-          {SUGGESTED_PROMPTS.map((prompt) => (
-            <TouchableOpacity
-              key={prompt}
-              style={[styles.suggestedChip, isDark && styles.suggestedChipDark]}
-              onPress={() => handleSuggestedPrompt(prompt)}
-            >
-              <Text style={[styles.suggestedText, isDark && styles.suggestedTextDark]}>
-                {prompt}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {messages.length <= 2 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestedContainer}
+          >
+            {SUGGESTED_PROMPTS.map((prompt) => (
+              <TouchableOpacity
+                key={prompt}
+                style={[styles.suggestedChip, isDark && styles.suggestedChipDark]}
+                onPress={() => handleSuggestedPrompt(prompt)}
+              >
+                <Text style={[styles.suggestedText, isDark && styles.suggestedTextDark]}>
+                  {prompt}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Text Input */}
         <View style={styles.inputRow}>
@@ -308,31 +353,39 @@ export default function AIChatScreen() {
             style={[styles.textInput, isDark && styles.textInputDark]}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="Ask about this paper..."
+            placeholder={isDownloaded ? 'Ask about this paper...' : 'Download model to chat...'}
             placeholderTextColor={isDark ? colors.textTertiaryDark : colors.textTertiaryLight}
             multiline
-            maxLength={1000}
-            editable={isModelDownloaded}
+            maxLength={2000}
+            editable={isDownloaded && !isGenerating}
+            onSubmitEditing={handleSend}
           />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!inputText.trim() || isGenerating || !isModelDownloaded) && styles.sendButtonDisabled,
-            ]}
-            onPress={handleSend}
-            disabled={!inputText.trim() || isGenerating || !isModelDownloaded}
-          >
-            {isGenerating ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
+          {isGenerating ? (
+            <TouchableOpacity style={styles.stopButton} onPress={handleStop}>
+              <Ionicons name="stop" size={20} color="#fff" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                (!inputText.trim() || !isDownloaded) && styles.sendButtonDisabled,
+              ]}
+              onPress={handleSend}
+              disabled={!inputText.trim() || !isDownloaded}
+            >
               <Ionicons name="arrow-up" size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
       {/* Safe area padding */}
-      <View style={{ height: insets.bottom, backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }} />
+      <View
+        style={{
+          height: insets.bottom,
+          backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight,
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -354,6 +407,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.dividerLight,
   },
+  headerDark: {
+    borderBottomColor: colors.dividerDark,
+  },
   backButton: {
     width: 40,
     height: 40,
@@ -362,7 +418,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: typography.fontSize.md,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.textPrimaryLight,
   },
   headerTitleDark: {
@@ -377,10 +433,13 @@ const styles = StyleSheet.create({
   paperContext: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.dividerLight,
   },
   paperContextDark: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderBottomColor: colors.dividerDark,
   },
   paperTitle: {
     fontSize: typography.fontSize.md,
@@ -410,7 +469,7 @@ const styles = StyleSheet.create({
   downloadBannerDark: {
     backgroundColor: colors.cardDark,
   },
-  downloadBannerText: {
+  downloadBannerContent: {
     flex: 1,
   },
   downloadTitle: {
@@ -424,20 +483,30 @@ const styles = StyleSheet.create({
   downloadSubtitle: {
     fontSize: typography.fontSize.xs,
     color: colors.textSecondaryLight,
+    marginTop: 2,
   },
   downloadSubtitleDark: {
     color: colors.textSecondaryDark,
   },
-  downloadButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: colors.dividerLight,
+    borderRadius: 2,
+    marginTop: spacing.sm,
+    overflow: 'hidden',
   },
-  downloadButtonText: {
-    color: '#fff',
-    fontSize: typography.fontSize.sm,
-    fontWeight: '600',
+  progressBar: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+  },
+  downloadButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   messagesContainer: {
     flex: 1,
@@ -465,6 +534,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarContainerDark: {
+    backgroundColor: colors.primaryDark,
   },
   messageBubble: {
     maxWidth: '80%',
@@ -498,23 +570,16 @@ const styles = StyleSheet.create({
   },
   typingIndicator: {
     flexDirection: 'row',
-    gap: 4,
-    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
   },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.textTertiaryLight,
+  typingText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryLight,
   },
-  typingDot1: {
-    opacity: 0.4,
-  },
-  typingDot2: {
-    opacity: 0.6,
-  },
-  typingDot3: {
-    opacity: 0.8,
+  typingTextDark: {
+    color: colors.textSecondaryDark,
   },
   inputContainer: {
     borderTopWidth: 1,
@@ -527,7 +592,8 @@ const styles = StyleSheet.create({
   },
   suggestedContainer: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
     gap: spacing.sm,
   },
   suggestedChip: {
@@ -536,6 +602,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.dividerLight,
+    marginRight: spacing.sm,
   },
   suggestedChipDark: {
     borderColor: colors.dividerDark,
@@ -552,16 +619,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingVertical: spacing.md,
     gap: spacing.sm,
   },
   textInput: {
     flex: 1,
     minHeight: 40,
-    maxHeight: 100,
+    maxHeight: 120,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
     borderColor: colors.dividerLight,
     backgroundColor: colors.cardLight,
@@ -584,10 +651,19 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     opacity: 0.5,
   },
+  stopButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   notFoundContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.md,
   },
   notFoundText: {
     fontSize: typography.fontSize.lg,
@@ -597,4 +673,3 @@ const styles = StyleSheet.create({
     color: colors.textSecondaryDark,
   },
 });
-

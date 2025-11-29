@@ -1,370 +1,389 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { useAppStore } from '../store/useAppStore';
-import type { ChatMessage, Paper } from '../types';
+import { useCallback, useEffect, useRef } from 'react';
+import { useCactusLM, type Message, type CactusModel } from 'cactus-react-native';
+import type { Paper, ChatMessage } from '../types';
+import * as storage from '../services/storage';
 
-// Mock Cactus types for development (replace with actual imports in production)
-// import { CactusLM, useCactusLM, type Message } from 'cactus-react-native';
+// Model selection: qwen3-0.6 is the default lightweight model suitable for mobile
+// It supports text completion and is optimized for on-device inference
+const DEFAULT_MODEL = 'qwen3-0.6';
+const DEFAULT_CONTEXT_SIZE = 4096;
 
-interface CactusMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
+/**
+ * Main hook for Cactus AI integration
+ * Provides text completion, paper analysis, and embedding capabilities
+ */
+export function useCactusAI(options?: { model?: string; contextSize?: number }) {
+  const { model = DEFAULT_MODEL, contextSize = DEFAULT_CONTEXT_SIZE } = options || {};
 
-interface CompletionOptions {
-  temperature?: number;
-  maxTokens?: number;
-  topP?: number;
-  topK?: number;
-}
+  // Use the official useCactusLM hook from the library
+  const cactusLM = useCactusLM({
+    model,
+    contextSize,
+  });
 
-interface CompletionResult {
-  response: string;
-  tokensPerSecond: number;
-  totalTimeMs: number;
-}
-
-interface EmbeddingResult {
-  embedding: number[];
-}
-
-// This hook provides AI capabilities using Cactus for on-device inference
-export function useCactusAI() {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [currentResponse, setCurrentResponse] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef(false);
-  
-  const {
-    isModelDownloaded,
-    isModelLoading,
-    modelDownloadProgress,
-    setModelDownloaded,
-    setModelLoading,
-    setModelDownloadProgress,
-    settings,
-  } = useAppStore();
-
-  // In production, this would be the actual CactusLM instance
-  // const cactusLMRef = useRef<CactusLM | null>(null);
-
+  /**
+   * Download the AI model if not already downloaded
+   */
   const downloadModel = useCallback(async () => {
-    if (isModelDownloaded || isModelLoading) return;
-    
-    setModelLoading(true);
-    setError(null);
-    
-    try {
-      // Simulated download for development
-      // In production, use:
-      // const cactusLM = new CactusLM({ model: settings.modelSlug });
-      // await cactusLM.download({
-      //   onProgress: (progress) => setModelDownloadProgress(progress)
-      // });
-      // await cactusLM.init();
-      // cactusLMRef.current = cactusLM;
-      
-      // Simulate download progress
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        setModelDownloadProgress(i / 100);
-      }
-      
-      setModelDownloaded(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to download model');
-    } finally {
-      setModelLoading(false);
-    }
-  }, [isModelDownloaded, isModelLoading, settings.modelSlug]);
+    if (cactusLM.isDownloaded || cactusLM.isDownloading) return;
 
+    try {
+      await cactusLM.download();
+    } catch (error) {
+      console.error('Error downloading model:', error);
+      throw error;
+    }
+  }, [cactusLM]);
+
+  /**
+   * Initialize the model for inference
+   */
+  const initModel = useCallback(async () => {
+    if (!cactusLM.isDownloaded) {
+      throw new Error('Model not downloaded');
+    }
+
+    try {
+      await cactusLM.init();
+    } catch (error) {
+      console.error('Error initializing model:', error);
+      throw error;
+    }
+  }, [cactusLM]);
+
+  /**
+   * Generate a completion with the given messages
+   */
   const generateCompletion = useCallback(
     async (
-      messages: CactusMessage[],
-      options?: CompletionOptions,
-      onToken?: (token: string) => void
-    ): Promise<CompletionResult> => {
-      if (!isModelDownloaded) {
-        throw new Error('Model not downloaded');
+      messages: Message[],
+      options?: {
+        temperature?: number;
+        maxTokens?: number;
+        topP?: number;
+        topK?: number;
+        onToken?: (token: string) => void;
       }
-      
-      setIsGenerating(true);
-      setCurrentResponse('');
-      setError(null);
-      abortRef.current = false;
-      
+    ) => {
+      const { temperature = 0.7, maxTokens = 512, topP = 0.9, topK = 40, onToken } = options || {};
+
       try {
-        // In production, use actual Cactus completion:
-        // const result = await cactusLMRef.current?.complete({
-        //   messages,
-        //   options: {
-        //     temperature: options?.temperature ?? 0.7,
-        //     maxTokens: options?.maxTokens ?? 512,
-        //     topP: options?.topP ?? 0.9,
-        //     topK: options?.topK ?? 40,
-        //   },
-        //   onToken: (token) => {
-        //     if (abortRef.current) return;
-        //     setCurrentResponse((prev) => prev + token);
-        //     onToken?.(token);
-        //   },
-        // });
-        
-        // Simulated response for development
-        const mockResponses: Record<string, string> = {
-          default: `Based on my analysis of this paper, here are the key points:
+        const result = await cactusLM.complete({
+          messages,
+          options: {
+            temperature,
+            maxTokens,
+            topP,
+            topK,
+          },
+          onToken,
+          mode: 'local', // Use local inference only
+        });
 
-**Main Contribution:**
-The paper introduces a novel architecture that significantly improves upon existing methods in the field.
-
-**Methodology:**
-The authors propose a new approach that combines attention mechanisms with efficient computation strategies.
-
-**Results:**
-The experimental results demonstrate state-of-the-art performance on standard benchmarks.
-
-**Implications:**
-This work opens up new possibilities for applying these techniques to real-world applications.`,
-          methodology: `Let me explain the methodology in simpler terms:
-
-**The Core Idea:**
-Instead of processing information sequentially (one piece at a time), the Transformer looks at all parts of the input simultaneously using "attention."
-
-**How Attention Works:**
-Think of it like reading a sentence where you can instantly see how each word relates to every other word, rather than reading left-to-right.
-
-**Key Components:**
-1. **Self-Attention**: Each word "asks" all other words how relevant they are
-2. **Multi-Head Attention**: Multiple attention patterns are learned in parallel
-3. **Feed-Forward Networks**: Process the attended information
-
-**Why It Works:**
-This parallel processing is much faster than sequential methods and captures long-range dependencies better.`,
-        };
-        
-        const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content.toLowerCase() || '';
-        const response = lastUserMessage.includes('methodology') || lastUserMessage.includes('simple')
-          ? mockResponses.methodology
-          : mockResponses.default;
-        
-        // Simulate streaming
-        const words = response.split(' ');
-        let accumulated = '';
-        
-        for (const word of words) {
-          if (abortRef.current) break;
-          await new Promise((resolve) => setTimeout(resolve, 30));
-          accumulated += (accumulated ? ' ' : '') + word;
-          setCurrentResponse(accumulated);
-          onToken?.(word + ' ');
-        }
-        
-        return {
-          response: accumulated,
-          tokensPerSecond: 25.5,
-          totalTimeMs: words.length * 30,
-        };
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Generation failed';
-        setError(errorMessage);
-        throw err;
-      } finally {
-        setIsGenerating(false);
+        return result;
+      } catch (error) {
+        console.error('Error generating completion:', error);
+        throw error;
       }
     },
-    [isModelDownloaded]
+    [cactusLM]
   );
 
+  /**
+   * Generate text embeddings for similarity search
+   */
   const generateEmbedding = useCallback(
-    async (text: string): Promise<EmbeddingResult> => {
-      if (!isModelDownloaded) {
-        throw new Error('Model not downloaded');
+    async (text: string) => {
+      try {
+        const result = await cactusLM.embed({ text });
+        return result;
+      } catch (error) {
+        console.error('Error generating embedding:', error);
+        throw error;
       }
-      
-      // In production, use actual Cactus embedding:
-      // return await cactusLMRef.current?.embed({ text });
-      
-      // Simulated embedding for development
-      const embedding = Array.from({ length: 384 }, () => Math.random() * 2 - 1);
-      return { embedding };
     },
-    [isModelDownloaded]
+    [cactusLM]
   );
 
-  const stopGeneration = useCallback(() => {
-    abortRef.current = true;
-    // In production: await cactusLMRef.current?.stop();
-  }, []);
+  /**
+   * Stop any ongoing generation
+   */
+  const stopGeneration = useCallback(async () => {
+    try {
+      await cactusLM.stop();
+    } catch (error) {
+      console.error('Error stopping generation:', error);
+    }
+  }, [cactusLM]);
 
+  /**
+   * Reset the model state
+   */
+  const resetModel = useCallback(async () => {
+    try {
+      await cactusLM.reset();
+    } catch (error) {
+      console.error('Error resetting model:', error);
+    }
+  }, [cactusLM]);
+
+  /**
+   * Get available models
+   */
+  const getAvailableModels = useCallback(async (): Promise<CactusModel[]> => {
+    try {
+      return await cactusLM.getModels();
+    } catch (error) {
+      console.error('Error getting models:', error);
+      return [];
+    }
+  }, [cactusLM]);
+
+  /**
+   * Chat about a specific paper
+   */
   const chatAboutPaper = useCallback(
     async (
       paper: Paper,
       userMessage: string,
-      chatHistory: ChatMessage[],
+      chatHistory: ChatMessage[] = [],
       onToken?: (token: string) => void
-    ): Promise<CompletionResult> => {
-      const systemPrompt = `You are a helpful AI research assistant analyzing the paper "${paper.title}" by ${paper.authors.join(', ')}.
+    ) => {
+      const systemPrompt = `You are a helpful AI research assistant. You are analyzing the following academic paper:
 
-Paper Abstract:
+**Title:** ${paper.title}
+
+**Authors:** ${paper.authors.join(', ')}
+
+**Abstract:**
 ${paper.abstract}
+
+**Categories:** ${paper.categories.join(', ')}
 
 Your role is to help the user understand this paper by:
 - Explaining concepts in clear, accessible language
 - Highlighting key contributions and methodology
 - Discussing limitations and implications
-- Comparing to related work when relevant
+- Answering questions about the paper's content
 
-Be concise but thorough. Use markdown formatting for clarity.`;
+Be concise but thorough. Use markdown formatting for clarity when appropriate.`;
 
-      const messages: CactusMessage[] = [
+      const messages: Message[] = [
         { role: 'system', content: systemPrompt },
-        ...chatHistory.map((msg) => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        })),
+        ...chatHistory
+          .filter((m) => m.role !== 'system')
+          .map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          })),
         { role: 'user', content: userMessage },
       ];
 
-      return generateCompletion(messages, { maxTokens: 1024 }, onToken);
+      return generateCompletion(messages, {
+        maxTokens: 1024,
+        temperature: 0.7,
+        onToken,
+      });
     },
     [generateCompletion]
   );
 
+  /**
+   * Generate a summary of a paper
+   */
   const summarizePaper = useCallback(
-    async (paper: Paper, onToken?: (token: string) => void): Promise<CompletionResult> => {
-      const messages: CactusMessage[] = [
+    async (paper: Paper, onToken?: (token: string) => void) => {
+      const messages: Message[] = [
         {
           role: 'system',
-          content: 'You are a research paper summarization assistant. Provide clear, concise summaries.',
+          content:
+            'You are a research paper summarization assistant. Provide clear, concise summaries that capture the key contributions.',
         },
         {
           role: 'user',
-          content: `Please provide a concise summary of this paper:
+          content: `Please provide a concise summary of this paper in 3-4 sentences:
 
-Title: ${paper.title}
-Authors: ${paper.authors.join(', ')}
+**Title:** ${paper.title}
 
-Abstract:
+**Authors:** ${paper.authors.join(', ')}
+
+**Abstract:**
 ${paper.abstract}
 
-Provide a 2-3 sentence summary highlighting the main contribution and key findings.`,
+Focus on: 1) The main problem being addressed, 2) The proposed approach/solution, 3) Key results or findings.`,
         },
       ];
 
-      return generateCompletion(messages, { maxTokens: 256 }, onToken);
+      return generateCompletion(messages, {
+        maxTokens: 300,
+        temperature: 0.5,
+        onToken,
+      });
     },
     [generateCompletion]
   );
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // In production: cactusLMRef.current?.destroy();
-    };
-  }, []);
+  /**
+   * Generate paper embedding and store it
+   */
+  const embedAndStorePaper = useCallback(
+    async (paper: Paper) => {
+      // Create text representation for embedding
+      const textToEmbed = `${paper.title}. ${paper.abstract}`;
+
+      try {
+        const result = await generateEmbedding(textToEmbed);
+        await storage.storePaperEmbedding(paper.id, result.embedding);
+        return result.embedding;
+      } catch (error) {
+        console.error('Error embedding paper:', error);
+        throw error;
+      }
+    },
+    [generateEmbedding]
+  );
+
+  /**
+   * Generate embedding for user interest/query
+   */
+  const embedQuery = useCallback(
+    async (query: string) => {
+      try {
+        const result = await generateEmbedding(query);
+        return result.embedding;
+      } catch (error) {
+        console.error('Error embedding query:', error);
+        throw error;
+      }
+    },
+    [generateEmbedding]
+  );
 
   return {
-    // State
-    isModelDownloaded,
-    isModelLoading,
-    modelDownloadProgress,
-    isGenerating,
-    currentResponse,
-    error,
-    
+    // State from useCactusLM hook
+    isDownloaded: cactusLM.isDownloaded,
+    isDownloading: cactusLM.isDownloading,
+    downloadProgress: cactusLM.downloadProgress,
+    isInitializing: cactusLM.isInitializing,
+    isGenerating: cactusLM.isGenerating,
+    completion: cactusLM.completion,
+    error: cactusLM.error,
+
     // Actions
     downloadModel,
+    initModel,
     generateCompletion,
     generateEmbedding,
     stopGeneration,
+    resetModel,
+    getAvailableModels,
+
+    // Paper-specific helpers
     chatAboutPaper,
     summarizePaper,
+    embedAndStorePaper,
+    embedQuery,
   };
 }
 
-// Hook for paper recommendations using embeddings
+/**
+ * Compute cosine similarity between two vectors
+ */
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) {
+    throw new Error('Vectors must have the same length');
+  }
+
+  let dotProduct = 0;
+  let magA = 0;
+  let magB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+
+  const magnitude = Math.sqrt(magA) * Math.sqrt(magB);
+  if (magnitude === 0) return 0;
+
+  return dotProduct / magnitude;
+}
+
+/**
+ * Hook for paper recommendations using embeddings
+ */
 export function usePaperRecommendations() {
-  const { interests, recommendedPapers, setRecommendedPapers } = useAppStore();
-  const { generateEmbedding, isModelDownloaded } = useCactusAI();
-  const [isLoading, setIsLoading] = useState(false);
+  const { embedQuery, embedAndStorePaper, isDownloaded, isGenerating } = useCactusAI();
 
-  const computeSimilarity = (a: number[], b: number[]): number => {
-    const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
-    const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-    const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-    return dotProduct / (magA * magB);
-  };
+  /**
+   * Score papers based on similarity to user interests
+   */
+  const scorePapers = useCallback(
+    async (
+      papers: Paper[],
+      interests: string[]
+    ): Promise<Array<Paper & { score: number; matchedInterest?: string }>> => {
+      if (!isDownloaded || interests.length === 0) {
+        return papers.map((p) => ({ ...p, score: 0 }));
+      }
 
-  const refreshRecommendations = useCallback(async () => {
-    if (!isModelDownloaded || interests.length === 0) return;
-    
-    setIsLoading(true);
-    
-    try {
-      // In production, this would:
-      // 1. Fetch recent papers from arXiv API
-      // 2. Generate embeddings for paper abstracts
-      // 3. Generate embeddings for user interests
-      // 4. Compute similarity scores
-      // 5. Rank and filter papers
-      
-      // For now, return mock data with simulated scores
-      const mockPapers: Paper[] = [
-        {
-          id: '1',
-          arxivId: '1706.03762',
-          title: 'Attention Is All You Need',
-          authors: ['Ashish Vaswani', 'Noam Shazeer', 'Niki Parmar', 'Jakob Uszkoreit', 'Llion Jones', 'Aidan N. Gomez', 'Łukasz Kaiser', 'Illia Polosukhin'],
-          abstract: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.',
-          categories: ['cs.CL', 'cs.LG'],
-          publishedDate: '2017-06-12',
-          updatedDate: '2017-06-12',
-          pdfUrl: 'https://arxiv.org/pdf/1706.03762',
-          arxivUrl: 'https://arxiv.org/abs/1706.03762',
-          matchedInterest: 'Transformers',
-          similarityScore: 0.95,
-        },
-        {
-          id: '2',
-          arxivId: '2010.11929',
-          title: 'An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale',
-          authors: ['Alexey Dosovitskiy', 'Lucas Beyer', 'Alexander Kolesnikov', 'Dirk Weissenborn', 'Xiaohua Zhai', 'Thomas Unterthiner', 'Mostafa Dehghani', 'Matthias Minderer', 'Georg Heigold', 'Sylvain Gelly', 'Jakob Uszkoreit', 'Neil Houlsby'],
-          abstract: 'While the Transformer architecture has become the de-facto standard for natural language processing tasks, its applications to computer vision remain limited. In vision, attention is either applied in conjunction with convolutional networks, or used to replace certain components of convolutional networks.',
-          categories: ['cs.CV', 'cs.LG'],
-          publishedDate: '2020-10-22',
-          updatedDate: '2020-10-22',
-          pdfUrl: 'https://arxiv.org/pdf/2010.11929',
-          arxivUrl: 'https://arxiv.org/abs/2010.11929',
-          matchedInterest: 'Deep Learning',
-          similarityScore: 0.89,
-        },
-        {
-          id: '3',
-          arxivId: '2303.08774',
-          title: 'GPT-4 Technical Report',
-          authors: ['OpenAI'],
-          abstract: 'We report the development of GPT-4, a large-scale, multimodal model which can accept image and text inputs and produce text outputs. While less capable than humans in many real-world scenarios, GPT-4 exhibits human-level performance on various professional and academic benchmarks.',
-          categories: ['cs.CL', 'cs.AI'],
-          publishedDate: '2023-03-15',
-          updatedDate: '2023-03-15',
-          pdfUrl: 'https://arxiv.org/pdf/2303.08774',
-          arxivUrl: 'https://arxiv.org/abs/2303.08774',
-          matchedInterest: 'NLP',
-          similarityScore: 0.87,
-        },
-      ];
-      
-      setRecommendedPapers(mockPapers);
-    } catch (err) {
-      console.error('Failed to refresh recommendations:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isModelDownloaded, interests, generateEmbedding, setRecommendedPapers]);
+      try {
+        // Get stored embeddings
+        const storedEmbeddings = await storage.getEmbeddings();
+
+        // Generate embeddings for interests
+        const interestEmbeddings: Array<{ interest: string; embedding: number[] }> = [];
+        for (const interest of interests) {
+          const embedding = await embedQuery(interest);
+          interestEmbeddings.push({ interest, embedding });
+        }
+
+        // Score each paper
+        const scoredPapers = await Promise.all(
+          papers.map(async (paper) => {
+            // Get or generate paper embedding
+            let paperEmbedding = storedEmbeddings[paper.id]?.embedding;
+            if (!paperEmbedding) {
+              try {
+                paperEmbedding = await embedAndStorePaper(paper);
+              } catch {
+                return { ...paper, score: 0 };
+              }
+            }
+
+            // Find best matching interest
+            let bestScore = 0;
+            let bestInterest: string | undefined;
+
+            for (const { interest, embedding } of interestEmbeddings) {
+              const similarity = cosineSimilarity(paperEmbedding, embedding);
+              if (similarity > bestScore) {
+                bestScore = similarity;
+                bestInterest = interest;
+              }
+            }
+
+            return {
+              ...paper,
+              score: bestScore,
+              matchedInterest: bestInterest,
+            };
+          })
+        );
+
+        // Sort by score descending
+        return scoredPapers.sort((a, b) => b.score - a.score);
+      } catch (error) {
+        console.error('Error scoring papers:', error);
+        return papers.map((p) => ({ ...p, score: 0 }));
+      }
+    },
+    [isDownloaded, embedQuery, embedAndStorePaper]
+  );
 
   return {
-    papers: recommendedPapers,
-    isLoading,
-    refreshRecommendations,
+    scorePapers,
+    isReady: isDownloaded && !isGenerating,
   };
 }
-

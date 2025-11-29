@@ -6,72 +6,58 @@ import {
   FlatList,
   useColorScheme,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing, typography, borderRadius } from '../theme';
 import { useAppStore } from '../store/useAppStore';
 import { SearchBar, PaperCard } from '../components';
 import type { Paper } from '../types';
 
+const RECENT_SEARCHES = [
+  'Large Language Models',
+  'Diffusion Models',
+  'Vision Transformers',
+  'Reinforcement Learning',
+  'Neural Architecture Search',
+];
+
 export default function SearchScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
-  const { searchQuery, setSearchQuery, searchResults, setSearchResults } = useAppStore();
-  const [isSearching, setIsSearching] = useState(false);
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    isSearching,
+    searchPapers,
+    clearSearch,
+  } = useAppStore();
 
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
+  const [localQuery, setLocalQuery] = useState(searchQuery);
+
+  const handleSearch = useCallback(() => {
+    if (localQuery.trim()) {
+      searchPapers(localQuery.trim());
     }
+  }, [localQuery, searchPapers]);
 
-    setIsSearching(true);
+  const handleClear = useCallback(() => {
+    setLocalQuery('');
+    clearSearch();
+  }, [clearSearch]);
 
-    // Simulated search - in production, this would call arXiv API
-    // and use embeddings for semantic search
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const mockResults: Paper[] = [
-      {
-        id: 'search-1',
-        arxivId: '2312.00752',
-        title: 'Mamba: Linear-Time Sequence Modeling with Selective State Spaces',
-        authors: ['Albert Gu', 'Tri Dao'],
-        abstract:
-          'Foundation models, now powering most of the exciting applications in deep learning, are almost universally based on the Transformer architecture and its core attention module.',
-        categories: ['cs.LG', 'cs.CL'],
-        publishedDate: '2023-12-01',
-        updatedDate: '2023-12-01',
-        pdfUrl: 'https://arxiv.org/pdf/2312.00752',
-        arxivUrl: 'https://arxiv.org/abs/2312.00752',
-      },
-      {
-        id: 'search-2',
-        arxivId: '2401.04088',
-        title: 'Mixtral of Experts',
-        authors: ['Mistral AI'],
-        abstract:
-          'We introduce Mixtral 8x7B, a Sparse Mixture of Experts (SMoE) language model. Mixtral has the same architecture as Mistral 7B, with the difference that each layer is composed of 8 feedforward blocks.',
-        categories: ['cs.CL', 'cs.AI'],
-        publishedDate: '2024-01-08',
-        updatedDate: '2024-01-08',
-        pdfUrl: 'https://arxiv.org/pdf/2401.04088',
-        arxivUrl: 'https://arxiv.org/abs/2401.04088',
-      },
-    ];
-
-    setSearchResults(
-      mockResults.filter(
-        (p) =>
-          p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.abstract.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    );
-    setIsSearching(false);
-  }, [searchQuery, setSearchResults]);
+  const handleSuggestionPress = useCallback(
+    (suggestion: string) => {
+      setLocalQuery(suggestion);
+      searchPapers(suggestion);
+    },
+    [searchPapers]
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: Paper }) => (
@@ -88,20 +74,25 @@ export default function SearchScreen() {
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-            Searching papers...
+            Searching arXiv...
           </Text>
         </View>
       );
     }
 
-    if (searchQuery.trim()) {
+    if (searchQuery.trim() && searchResults.length === 0) {
       return (
         <View style={styles.emptyContainer}>
+          <Ionicons
+            name="search-outline"
+            size={64}
+            color={isDark ? colors.textTertiaryDark : colors.textTertiaryLight}
+          />
           <Text style={[styles.emptyTitle, isDark && styles.emptyTitleDark]}>
             No results found
           </Text>
           <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-            Try different keywords or browse categories
+            Try different keywords or check your spelling
           </Text>
         </View>
       );
@@ -109,28 +100,56 @@ export default function SearchScreen() {
 
     return (
       <View style={styles.emptyContainer}>
+        <Ionicons
+          name="telescope-outline"
+          size={64}
+          color={isDark ? colors.textTertiaryDark : colors.textTertiaryLight}
+        />
         <Text style={[styles.emptyTitle, isDark && styles.emptyTitleDark]}>
-          Search arXiv Papers
+          Explore Research
         </Text>
         <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-          Find papers by title, authors, or keywords
+          Search millions of papers on arXiv by title, author, or topic
         </Text>
-        <View style={styles.suggestions}>
+
+        <View style={styles.suggestionsContainer}>
           <Text style={[styles.suggestionsTitle, isDark && styles.suggestionsTitleDark]}>
-            Popular searches:
+            Popular searches
           </Text>
-          {['Large Language Models', 'Diffusion Models', 'Vision Transformers'].map(
-            (suggestion) => (
-              <Text
-                key={suggestion}
-                style={styles.suggestionItem}
-                onPress={() => setSearchQuery(suggestion)}
-              >
+          {RECENT_SEARCHES.map((suggestion) => (
+            <TouchableOpacity
+              key={suggestion}
+              style={[styles.suggestionItem, isDark && styles.suggestionItemDark]}
+              onPress={() => handleSuggestionPress(suggestion)}
+            >
+              <Ionicons
+                name="search"
+                size={18}
+                color={isDark ? colors.textSecondaryDark : colors.textSecondaryLight}
+              />
+              <Text style={[styles.suggestionText, isDark && styles.suggestionTextDark]}>
                 {suggestion}
               </Text>
-            )
-          )}
+              <Ionicons
+                name="arrow-forward"
+                size={18}
+                color={isDark ? colors.textTertiaryDark : colors.textTertiaryLight}
+              />
+            </TouchableOpacity>
+          ))}
         </View>
+      </View>
+    );
+  };
+
+  const renderHeader = () => {
+    if (searchResults.length === 0) return null;
+
+    return (
+      <View style={styles.resultsHeader}>
+        <Text style={[styles.resultsCount, isDark && styles.resultsCountDark]}>
+          {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
+        </Text>
       </View>
     );
   };
@@ -143,10 +162,10 @@ export default function SearchScreen() {
           Search
         </Text>
         <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+          value={localQuery}
+          onChangeText={setLocalQuery}
           onSubmit={handleSearch}
-          autoFocus
+          onClear={handleClear}
           placeholder="Search papers, authors, topics..."
         />
       </View>
@@ -156,12 +175,13 @@ export default function SearchScreen() {
         data={searchResults}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: insets.bottom + 100 },
           searchResults.length === 0 && styles.emptyListContent,
         ]}
-        ListEmptyComponent={renderEmpty}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -193,10 +213,21 @@ const styles = StyleSheet.create({
     color: colors.textPrimaryDark,
   },
   listContent: {
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
   },
   emptyListContent: {
     flex: 1,
+  },
+  resultsHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  resultsCount: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryLight,
+  },
+  resultsCountDark: {
+    color: colors.textSecondaryDark,
   },
   cardWrapper: {
     paddingHorizontal: spacing.lg,
@@ -212,6 +243,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     fontWeight: '700',
     color: colors.textPrimaryLight,
+    marginTop: spacing.lg,
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
@@ -222,13 +254,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.textSecondaryLight,
     textAlign: 'center',
+    lineHeight: typography.fontSize.md * 1.5,
   },
   emptyTextDark: {
     color: colors.textSecondaryDark,
   },
-  suggestions: {
+  suggestionsContainer: {
+    width: '100%',
     marginTop: spacing.xxl,
-    alignItems: 'center',
   },
   suggestionsTitle: {
     fontSize: typography.fontSize.sm,
@@ -240,9 +273,24 @@ const styles = StyleSheet.create({
     color: colors.textSecondaryDark,
   },
   suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.cardLight,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.sm,
+    gap: spacing.md,
+  },
+  suggestionItemDark: {
+    backgroundColor: colors.cardDark,
+  },
+  suggestionText: {
+    flex: 1,
     fontSize: typography.fontSize.md,
-    color: colors.primary,
-    paddingVertical: spacing.sm,
+    color: colors.textPrimaryLight,
+  },
+  suggestionTextDark: {
+    color: colors.textPrimaryDark,
   },
 });
-

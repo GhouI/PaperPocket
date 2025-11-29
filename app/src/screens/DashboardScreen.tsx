@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,18 @@ import {
   useColorScheme,
   RefreshControl,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing, typography, borderRadius } from '../theme';
 import type { RootStackParamList } from '../types';
 import { useAppStore } from '../store/useAppStore';
-import { usePaperRecommendations } from '../hooks/useCactusAI';
+import { useCactusAI } from '../hooks/useCactusAI';
 import {
-  Header,
   SearchBar,
   PaperCard,
   ActionChip,
@@ -32,29 +32,61 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  const { searchQuery, setSearchQuery, agentActivities, isModelDownloaded } = useAppStore();
-  const { papers, isLoading, refreshRecommendations } = usePaperRecommendations();
+  const {
+    isInitialized,
+    initializeApp,
+    searchQuery,
+    setSearchQuery,
+    agentActivities,
+    recommendedPapers,
+    isLoadingPapers,
+    papersError,
+    fetchRecommendedPapers,
+    interests,
+  } = useAppStore();
 
+  const { isDownloaded: isModelDownloaded } = useCactusAI();
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
+
+  // Initialize app on mount
   useEffect(() => {
-    refreshRecommendations();
-  }, []);
+    if (!isInitialized) {
+      initializeApp();
+    }
+  }, [isInitialized, initializeApp]);
+
+  // Fetch papers when initialized or interests change
+  useFocusEffect(
+    useCallback(() => {
+      if (isInitialized) {
+        fetchRecommendedPapers();
+      }
+    }, [isInitialized, interests.length])
+  );
+
+  const handleRefresh = useCallback(() => {
+    fetchRecommendedPapers();
+  }, [fetchRecommendedPapers]);
 
   const handleAddInterest = () => {
     navigation.navigate('AddInterest');
   };
 
-  const handleAddFromUrl = () => {
-    // TODO: Implement URL paper import
+  const handleSearch = () => {
+    if (localSearchQuery.trim()) {
+      setSearchQuery(localSearchQuery);
+      // Navigate to search tab - this would typically be handled by tab navigation
+    }
   };
 
   const handleLibrary = () => {
-    navigation.navigate('Library');
+    // Navigate to library tab
   };
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View style={[styles.header, { paddingTop: insets.top }, isDark && styles.headerDark]}>
         <View style={styles.headerContent}>
           <TouchableOpacity style={styles.logoButton}>
             <Ionicons
@@ -64,7 +96,7 @@ export default function DashboardScreen() {
             />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>
-            Dashboard
+            PaperPocket
           </Text>
           <TouchableOpacity style={styles.profileButton}>
             <Ionicons
@@ -85,8 +117,8 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
-            onRefresh={refreshRecommendations}
+            refreshing={isLoadingPapers}
+            onRefresh={handleRefresh}
             tintColor={colors.primary}
           />
         }
@@ -94,8 +126,9 @@ export default function DashboardScreen() {
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={localSearchQuery}
+            onChangeText={setLocalSearchQuery}
+            onSubmit={handleSearch}
             placeholder="Search papers, authors, keywords..."
           />
         </View>
@@ -111,7 +144,6 @@ export default function DashboardScreen() {
             label="Add Interest"
             onPress={handleAddInterest}
           />
-          <ActionChip icon="link" label="Add from URL" onPress={handleAddFromUrl} />
           <ActionChip
             icon="bookmarks"
             label="My Library"
@@ -126,13 +158,54 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {/* Interests Display */}
+        {interests.length > 0 && (
+          <View style={styles.interestsSection}>
+            <Text style={[styles.interestsLabel, isDark && styles.interestsLabelDark]}>
+              Showing papers for:
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.interestTags}>
+                {interests.slice(0, 5).map((interest) => (
+                  <View key={interest.id} style={[styles.interestTag, isDark && styles.interestTagDark]}>
+                    <Text style={styles.interestTagText}>{interest.name}</Text>
+                  </View>
+                ))}
+                {interests.length > 5 && (
+                  <Text style={[styles.moreInterests, isDark && styles.moreInterestsDark]}>
+                    +{interests.length - 5} more
+                  </Text>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Error State */}
+        {papersError && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="warning" size={20} color={colors.warning} />
+            <Text style={[styles.errorText, isDark && styles.errorTextDark]}>
+              {papersError}
+            </Text>
+          </View>
+        )}
+
         {/* For You Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
             For You
           </Text>
-          {papers.length > 0 ? (
-            <PaperCard paper={papers[0]} />
+
+          {isLoadingPapers && recommendedPapers.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, isDark && styles.loadingTextDark]}>
+                Fetching papers from arXiv...
+              </Text>
+            </View>
+          ) : recommendedPapers.length > 0 ? (
+            <PaperCard paper={recommendedPapers[0]} />
           ) : (
             <View style={[styles.emptyState, isDark && styles.emptyStateDark]}>
               <Ionicons
@@ -141,37 +214,41 @@ export default function DashboardScreen() {
                 color={isDark ? colors.textTertiaryDark : colors.textTertiaryLight}
               />
               <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-                Add interests to get personalized recommendations
+                {interests.length === 0
+                  ? 'Add interests to get personalized recommendations'
+                  : 'No papers found matching your interests'}
               </Text>
               <TouchableOpacity
                 style={styles.addInterestButton}
                 onPress={handleAddInterest}
               >
-                <Text style={styles.addInterestButtonText}>Add Interests</Text>
+                <Text style={styles.addInterestButtonText}>
+                  {interests.length === 0 ? 'Add Interests' : 'Edit Interests'}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
         {/* Agent Activity Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
-            Agent Activity
-          </Text>
-          <AgentActivityCard
-            activities={agentActivities}
-            onViewAll={() => {
-              // TODO: Navigate to activity log
-            }}
-          />
-        </View>
+        {agentActivities.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+              Agent Activity
+            </Text>
+            <AgentActivityCard activities={agentActivities} />
+          </View>
+        )}
 
         {/* More Recommendations */}
-        {papers.length > 1 && (
+        {recommendedPapers.length > 1 && (
           <View style={styles.section}>
-            {papers.slice(1).map((paper) => (
+            <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
+              More Papers
+            </Text>
+            {recommendedPapers.slice(1, 10).map((paper) => (
               <View key={paper.id} style={styles.paperCardWrapper}>
-                <PaperCard paper={paper} />
+                <PaperCard paper={paper} variant="compact" />
               </View>
             ))}
           </View>
@@ -242,6 +319,63 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.md,
   },
+  interestsSection: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  interestsLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryLight,
+    marginBottom: spacing.sm,
+  },
+  interestsLabelDark: {
+    color: colors.textSecondaryDark,
+  },
+  interestTags: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  interestTag: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.full,
+  },
+  interestTagDark: {
+    backgroundColor: colors.primaryDark,
+  },
+  interestTagText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  moreInterests: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondaryLight,
+    alignSelf: 'center',
+    marginLeft: spacing.sm,
+  },
+  moreInterestsDark: {
+    color: colors.textSecondaryDark,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: borderRadius.lg,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondaryLight,
+  },
+  errorTextDark: {
+    color: colors.textSecondaryDark,
+  },
   section: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
@@ -257,7 +391,19 @@ const styles = StyleSheet.create({
     color: colors.textPrimaryDark,
   },
   paperCardWrapper: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  loadingContainer: {
+    padding: spacing.xxxl,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  loadingText: {
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondaryLight,
+  },
+  loadingTextDark: {
+    color: colors.textSecondaryDark,
   },
   emptyState: {
     backgroundColor: colors.cardLight,
@@ -290,4 +436,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

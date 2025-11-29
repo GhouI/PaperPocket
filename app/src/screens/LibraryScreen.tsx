@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,11 @@ import {
   FlatList,
   useColorScheme,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { colors, spacing, typography, borderRadius } from '../theme';
 import { useAppStore } from '../store/useAppStore';
@@ -22,14 +24,22 @@ export default function LibraryScreen() {
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
-  const { libraryPapers } = useAppStore();
+  const { libraryPapers, loadLibrary, removeFromLibrary } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('recent');
+
+  // Reload library when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      loadLibrary();
+    }, [loadLibrary])
+  );
 
   const filteredPapers = libraryPapers.filter(
     (paper) =>
       paper.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      paper.authors.some((a) => a.toLowerCase().includes(searchQuery.toLowerCase()))
+      paper.authors.some((a) => a.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      paper.categories.some((c) => c.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const sortedPapers = [...filteredPapers].sort((a, b) => {
@@ -39,9 +49,27 @@ export default function LibraryScreen() {
       case 'date':
         return new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime();
       default:
-        return 0;
+        return 0; // Keep original order (most recently added)
     }
   });
+
+  const handleRemovePaper = useCallback(
+    (paper: Paper) => {
+      Alert.alert(
+        'Remove from Library',
+        `Remove "${paper.title}" from your library?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: () => removeFromLibrary(paper.id),
+          },
+        ]
+      );
+    },
+    [removeFromLibrary]
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: Paper }) => (
@@ -63,42 +91,45 @@ export default function LibraryScreen() {
         Your Library is Empty
       </Text>
       <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-        Save papers from your feed to build your research library
+        Save papers from your feed or search results to build your personal research library
       </Text>
     </View>
   );
 
-  const renderHeader = () => (
-    <View style={styles.filtersContainer}>
-      <View style={styles.sortButtons}>
-        {(['recent', 'title', 'date'] as SortOption[]).map((option) => (
-          <TouchableOpacity
-            key={option}
-            style={[
-              styles.sortButton,
-              sortBy === option && styles.sortButtonActive,
-              isDark && styles.sortButtonDark,
-              sortBy === option && styles.sortButtonActiveDark,
-            ]}
-            onPress={() => setSortBy(option)}
-          >
-            <Text
+  const renderHeader = () => {
+    if (libraryPapers.length === 0) return null;
+
+    return (
+      <View style={styles.filtersContainer}>
+        <View style={styles.sortButtons}>
+          {(['recent', 'title', 'date'] as SortOption[]).map((option) => (
+            <TouchableOpacity
+              key={option}
               style={[
-                styles.sortButtonText,
-                sortBy === option && styles.sortButtonTextActive,
-                isDark && styles.sortButtonTextDark,
+                styles.sortButton,
+                isDark && styles.sortButtonDark,
+                sortBy === option && styles.sortButtonActive,
               ]}
+              onPress={() => setSortBy(option)}
             >
-              {option.charAt(0).toUpperCase() + option.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text
+                style={[
+                  styles.sortButtonText,
+                  isDark && styles.sortButtonTextDark,
+                  sortBy === option && styles.sortButtonTextActive,
+                ]}
+              >
+                {option === 'recent' ? 'Recent' : option === 'title' ? 'A-Z' : 'Date'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={[styles.paperCount, isDark && styles.paperCountDark]}>
+          {sortedPapers.length} paper{sortedPapers.length !== 1 ? 's' : ''}
+        </Text>
       </View>
-      <Text style={[styles.paperCount, isDark && styles.paperCountDark]}>
-        {sortedPapers.length} paper{sortedPapers.length !== 1 ? 's' : ''}
-      </Text>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
@@ -107,11 +138,13 @@ export default function LibraryScreen() {
         <Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>
           Library
         </Text>
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search your library..."
-        />
+        {libraryPapers.length > 0 && (
+          <SearchBar
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search your library..."
+          />
+        )}
       </View>
 
       {/* Papers List */}
@@ -119,7 +152,7 @@ export default function LibraryScreen() {
         data={sortedPapers}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={libraryPapers.length > 0 ? renderHeader : null}
+        ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={[
           styles.listContent,
@@ -185,9 +218,6 @@ const styles = StyleSheet.create({
   sortButtonActive: {
     backgroundColor: colors.primary,
   },
-  sortButtonActiveDark: {
-    backgroundColor: colors.primary,
-  },
   sortButtonText: {
     fontSize: typography.fontSize.sm,
     fontWeight: '500',
@@ -230,9 +260,9 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.textSecondaryLight,
     textAlign: 'center',
+    lineHeight: typography.fontSize.md * 1.5,
   },
   emptyTextDark: {
     color: colors.textSecondaryDark,
   },
 });
-

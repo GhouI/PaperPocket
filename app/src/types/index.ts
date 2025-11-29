@@ -91,21 +91,6 @@ export type MainTabParamList = {
   Settings: undefined;
 };
 
-// AI Model types
-export interface AIModelInfo {
-  name: string;
-  slug: string;
-  sizeMb: number;
-  isDownloaded: boolean;
-  supportsEmbeddings: boolean;
-}
-
-export interface CompletionResult {
-  response: string;
-  tokensPerSecond: number;
-  totalTimeMs: number;
-}
-
 // App Settings
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
@@ -114,4 +99,3 @@ export interface AppSettings {
   defaultPaperSource: 'arxiv' | 'semantic_scholar';
   modelSlug: string;
 }
-
